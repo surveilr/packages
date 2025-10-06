@@ -1,0 +1,39 @@
+# syntax=ghcr.io/azure/dalec/frontend:latest
+# DALEC config for packaging existing surveilr binary
+
+name: surveilr
+version: 3.1.0
+revision: 1
+packager: Surveilr Team
+vendor: Surveilr
+license: GPL-3.0
+description: Resource surveillance and monitoring tool
+website: https://surveilr.com
+
+sources:
+  src:
+    context: {}
+
+# No compilation - just package existing binary from build context  
+build:
+  steps:
+    - command: |
+        set -ex
+        # Debug: Check what files are available
+        pwd
+        ls -la
+        find . -name "*surveilr*" -type f
+        
+        # Binary provided by repository dispatch workflow
+        # Should be available in build context as 'surveilr'
+        ls -la surveilr
+        chmod +x surveilr
+
+artifacts:
+  binaries:
+    surveilr:
+
+targets:
+  mariner2:       # Linux RPM
+  jammy:          # Ubuntu 22.04 DEB
+  bookworm:       # Debian 12 DEB
