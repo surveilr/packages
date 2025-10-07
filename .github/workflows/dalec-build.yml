@@ -39,7 +39,7 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
-            VERSION="latest"
+            VERSION=$(curl -s https://api.github.com/repos/surveilr/surveilr/releases/latest | jq -r .tag_name)
           fi
 
           echo "📦 Downloading surveilr binary for version: $VERSION"
