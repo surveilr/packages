@@ -121,15 +121,15 @@ jobs:
         run: |
           # Extract SBOM from built image
           docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-jammy:${{ github.sha }} \
-            --format '{{ json .SBOM }}' > surveilr-sbom.json
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.sha }} \
+            --format '{{ json .SBOM }}' > surveilr-${{ matrix.target }}-sbom.json
             
       - name: Upload SBOM
         if: matrix.platform == 'linux/amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: surveilr-sbom
-          path: surveilr-sbom.json
+          name: surveilr-${{ matrix.target }}-sbom
+          path: surveilr-${{ matrix.target }}-sbom.json
           
   extract-packages:
     needs: build-packages
