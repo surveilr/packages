@@ -25,8 +25,9 @@ build:
         find . -name "*surveilr*" -type f
         
         # Binary provided by repository dispatch workflow
-        # Should be available in build context as 'surveilr'
-        ls -la surveilr
+        # Should be available in build context from src/ directory
+        ls -la src/surveilr
+        cp src/surveilr ./surveilr
         chmod +x surveilr
 
 artifacts:
