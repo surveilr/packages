@@ -59,6 +59,9 @@ jobs:
             exit 1
           }
           
+          # Clean up any existing files
+          rm -f surveilr
+          
           # Extract binary
           tar -xzf surveilr.tar.gz || {
             echo "❌ Failed to extract surveilr binary"
@@ -118,7 +121,7 @@ jobs:
         run: |
           # Extract SBOM from built image
           docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr:${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-jammy:${{ github.sha }} \
             --format '{{ json .SBOM }}' > surveilr-sbom.json
             
       - name: Upload SBOM
@@ -135,8 +138,16 @@ jobs:
     
     strategy:
       matrix:
-        format: [deb, rpm]
-        platform: [linux/amd64]
+        include:
+          - target: jammy
+            format: deb
+            platform: linux/amd64
+          - target: bookworm  
+            format: deb
+            platform: linux/amd64
+          - target: mariner2
+            format: rpm
+            platform: linux/amd64
     
     steps:
       - name: Set up Docker Buildx
@@ -153,7 +164,7 @@ jobs:
         run: |
           # Create container from built image
           CONTAINER_ID=$(docker create \
-            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr:${{ github.ref_name }})
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }})
           
           # Extract package files based on format
           case "${{ matrix.format }}" in
@@ -177,7 +188,7 @@ jobs:
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: surveilr-${{ matrix.format }}-${{ matrix.platform }}
+          name: surveilr-${{ matrix.target }}-${{ matrix.format }}
           path: "*.{deb,rpm,tar.gz}"
           
   create-release:
