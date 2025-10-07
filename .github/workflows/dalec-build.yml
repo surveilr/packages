@@ -25,6 +25,7 @@ jobs:
       
     strategy:
       matrix:
+        target: [jammy, bookworm, mariner2]
         platform:
           - linux/amd64
     
@@ -67,7 +68,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -80,6 +81,7 @@ jobs:
           context: .
           file: dalec-surveilr-deb.yaml
           platforms: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
