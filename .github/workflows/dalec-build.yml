@@ -119,9 +119,9 @@ jobs:
       - name: Generate SBOM
         if: matrix.platform == 'linux/amd64'
         run: |
-          # Extract SBOM from built image
+          # Extract SBOM from built image using the main tag
           docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:main \
             --format '{{ json .SBOM }}' > surveilr-${{ matrix.target }}-sbom.json
             
       - name: Upload SBOM
