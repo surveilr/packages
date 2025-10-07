@@ -35,6 +35,5 @@ artifacts:
     surveilr:
 
 targets:
-  mariner2:       # Linux RPM
   jammy:          # Ubuntu 22.04 DEB
   bookworm:       # Debian 12 DEB
