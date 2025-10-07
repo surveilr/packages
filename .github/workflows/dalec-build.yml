@@ -59,8 +59,8 @@ jobs:
             exit 1
           }
           
-          # Clean up any existing files
-          rm -f surveilr
+          # Clean up any existing files or directories
+          rm -rf surveilr
           
           # Extract binary
           tar -xzf surveilr.tar.gz || {
