@@ -25,10 +25,8 @@ jobs:
       
     strategy:
       matrix:
-        package: [surveilr, surveilr-omnibus]
         platform:
           - linux/amd64
-          - linux/arm64
     
     steps:
       - name: Checkout repository
@@ -69,7 +67,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.package }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -80,7 +78,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: dalec-${{ matrix.package }}-deb.yaml
+          file: dalec-surveilr-deb.yaml
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -95,15 +93,15 @@ jobs:
         run: |
           # Extract SBOM from built image
           docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.package }}:${{ github.sha }} \
-            --format '{{ json .SBOM }}' > ${{ matrix.package }}-sbom.json
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr:${{ github.sha }} \
+            --format '{{ json .SBOM }}' > surveilr-sbom.json
             
       - name: Upload SBOM
         if: matrix.platform == 'linux/amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.package }}-sbom
-          path: ${{ matrix.package }}-sbom.json
+          name: surveilr-sbom
+          path: surveilr-sbom.json
           
   extract-packages:
     needs: build-packages
@@ -112,9 +110,8 @@ jobs:
     
     strategy:
       matrix:
-        package: [surveilr, surveilr-omnibus]
-        format: [deb, rpm, tar]
-        platform: [linux/amd64, linux/arm64]
+        format: [deb, rpm]
+        platform: [linux/amd64]
     
     steps:
       - name: Set up Docker Buildx
@@ -131,7 +128,7 @@ jobs:
         run: |
           # Create container from built image
           CONTAINER_ID=$(docker create \
-            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.package }}:${{ github.ref_name }})
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr:${{ github.ref_name }})
           
           # Extract package files based on format
           case "${{ matrix.format }}" in
@@ -155,7 +152,7 @@ jobs:
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.package }}-${{ matrix.format }}-${{ matrix.platform }}
+          name: surveilr-${{ matrix.format }}-${{ matrix.platform }}
           path: "*.{deb,rpm,tar.gz}"
           
   create-release:
