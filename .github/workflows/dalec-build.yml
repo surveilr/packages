@@ -171,19 +171,19 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }} \
             /bin/sh)
           
-          # Extract package files based on format
+          # Extract package files from root directory (where DALEC puts them)
           case "${{ matrix.format }}" in
             deb)
-              docker cp $CONTAINER_ID:/packages/ ./packages/
-              find ./packages -name "*.deb" -exec mv {} ./ \;
+              docker cp $CONTAINER_ID:/. ./
+              find . -maxdepth 1 -name "*.deb" -type f
               ;;
             rpm)
-              docker cp $CONTAINER_ID:/packages/ ./packages/
-              find ./packages -name "*.rpm" -exec mv {} ./ \;
+              docker cp $CONTAINER_ID:/. ./
+              find . -maxdepth 1 -name "*.rpm" -type f
               ;;
             tar)
-              docker cp $CONTAINER_ID:/packages/ ./packages/
-              find ./packages -name "*.tar.gz" -exec mv {} ./ \;
+              docker cp $CONTAINER_ID:/. ./
+              find . -maxdepth 1 -name "*.tar.gz" -type f
               ;;
           esac
           
