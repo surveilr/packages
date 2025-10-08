@@ -5,6 +5,7 @@ on:
     types: [binary_ready]
   push:
     tags:
+      - '*.*.*'
       - 'v*.*.*'
     branches:
       - main
