@@ -166,9 +166,10 @@ jobs:
           
       - name: Extract package artifacts
         run: |
-          # Create container from built image
+          # Create container from built image with a dummy command
           CONTAINER_ID=$(docker create \
-            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }})
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }} \
+            /bin/sh)
           
           # Extract package files based on format
           case "${{ matrix.format }}" in

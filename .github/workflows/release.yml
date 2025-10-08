@@ -203,10 +203,14 @@ jobs:
             VERSION="${{ github.ref_name }}"
             VERSION=${VERSION#v}
             
+            # Create a tag in homebrew-tap repo to trigger its update workflow
             curl -X POST \
-              -H "Accept: application/vnd.github.v3+json" \
               -H "Authorization: token ${{ secrets.GH_PAT }}" \
-              "https://api.github.com/repos/surveilr/homebrew-tap/dispatches" \
-              -d "{\"event_type\":\"new_release\",\"client_payload\":{\"version\":\"$VERSION\"}}"
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/surveilr/homebrew-tap/git/refs" \
+              -d "{
+                \"ref\": \"refs/tags/update-${VERSION}\",
+                \"sha\": \"$(curl -s -H \"Authorization: token ${{ secrets.GH_PAT }}\" https://api.github.com/repos/surveilr/homebrew-tap/git/refs/heads/main | jq -r '.object.sha')\"
+              }"
             
-            echo "🍺 Triggered Homebrew tap update for version $VERSION"
+            echo "🍺 Created tag update-${VERSION} in homebrew-tap repo"
