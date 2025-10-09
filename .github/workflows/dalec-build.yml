@@ -159,30 +159,45 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Extract package artifacts
-        uses: shrink/actions-docker-extract@v3
-        with:
-          image: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }}
-          path: /
-          destination: ./extracted
-          
-      - name: Find and move packages
+      - name: Extract package artifacts  
         run: |
-          echo "🔍 Looking for ${{ matrix.format }} packages..."
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }}"
+          
+          echo "🔍 Extracting packages from $IMAGE_NAME..."
+          
+          # Create container with different dummy commands until one works
+          CONTAINER_ID=""
+          for cmd in "/bin/true" "true" "echo hello" "ls" "/usr/bin/true"; do
+            if CONTAINER_ID=$(docker create $IMAGE_NAME $cmd 2>/dev/null); then
+              echo "✅ Created container with command: $cmd"
+              break
+            fi
+          done
+          
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "❌ Failed to create container with any command"
+            exit 1
+          fi
+          
+          echo "Container ID: $CONTAINER_ID"
+          
+          # Extract specific files based on format to avoid permission issues
           case "${{ matrix.format }}" in
             deb)
-              find ./extracted -name "*.deb" -exec mv {} ./ \;
-              ls -la *.deb 2>/dev/null || echo "No .deb files found"
+              docker cp $CONTAINER_ID:/. ./temp_extract/
+              find ./temp_extract -name "*.deb" -exec cp {} ./ \; 2>/dev/null || echo "No .deb files found"
+              ls -la *.deb 2>/dev/null || echo "No .deb files in current directory"
               ;;
             rpm)
-              find ./extracted -name "*.rpm" -exec mv {} ./ \;
-              ls -la *.rpm 2>/dev/null || echo "No .rpm files found"
-              ;;
-            tar)
-              find ./extracted -name "*.tar.gz" -exec mv {} ./ \;
-              ls -la *.tar.gz 2>/dev/null || echo "No .tar.gz files found"
+              docker cp $CONTAINER_ID:/. ./temp_extract/
+              find ./temp_extract -name "*.rpm" -exec cp {} ./ \; 2>/dev/null || echo "No .rpm files found"  
+              ls -la *.rpm 2>/dev/null || echo "No .rpm files in current directory"
               ;;
           esac
+          
+          # Cleanup
+          docker rm $CONTAINER_ID
+          rm -rf ./temp_extract
           
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
