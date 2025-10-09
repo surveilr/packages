@@ -159,36 +159,29 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Extract package artifacts
+        uses: shrink/actions-docker-extract@v3
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }}
+          path: /
+          destination: ./extracted
+          
+      - name: Find and move packages
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/surveilr-${{ matrix.target }}:${{ github.ref_name }}"
-          
-          # Use docker run to find and copy package files in one go
-          echo "🔍 Extracting packages from $IMAGE_NAME..."
-          
+          echo "🔍 Looking for ${{ matrix.format }} packages..."
           case "${{ matrix.format }}" in
             deb)
-              docker run --rm -v $(pwd):/output $IMAGE_NAME sh -c "
-                find / -maxdepth 1 -name '*.deb' -exec cp {} /output/ \; 2>/dev/null || true
-                ls -la /output/*.deb 2>/dev/null || echo 'No .deb files found'
-              "
+              find ./extracted -name "*.deb" -exec mv {} ./ \;
+              ls -la *.deb 2>/dev/null || echo "No .deb files found"
               ;;
             rpm)
-              docker run --rm -v $(pwd):/output $IMAGE_NAME sh -c "
-                find / -maxdepth 1 -name '*.rpm' -exec cp {} /output/ \; 2>/dev/null || true
-                ls -la /output/*.rpm 2>/dev/null || echo 'No .rpm files found'
-              "
+              find ./extracted -name "*.rpm" -exec mv {} ./ \;
+              ls -la *.rpm 2>/dev/null || echo "No .rpm files found"
               ;;
             tar)
-              docker run --rm -v $(pwd):/output $IMAGE_NAME sh -c "
-                find / -maxdepth 1 -name '*.tar.gz' -exec cp {} /output/ \; 2>/dev/null || true
-                ls -la /output/*.tar.gz 2>/dev/null || echo 'No .tar.gz files found'
-              "
+              find ./extracted -name "*.tar.gz" -exec mv {} ./ \;
+              ls -la *.tar.gz 2>/dev/null || echo "No .tar.gz files found"
               ;;
           esac
-          
-          # Show what we extracted
-          echo "📦 Extracted packages:"
-          ls -la *.{deb,rpm,tar.gz} 2>/dev/null || echo "No packages found after extraction"
           
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
