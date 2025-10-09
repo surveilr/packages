@@ -198,11 +198,22 @@ jobs:
           docker rm $CONTAINER_ID
           rm -rf ./temp_extract
           
+      - name: Check extracted packages before upload
+        run: |
+          echo "📦 Files in current directory:"
+          ls -la
+          echo "🔍 Looking for packages to upload:"
+          ls -la *.deb *.rpm *.tar.gz 2>/dev/null || echo "❌ No package files found for upload"
+          
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: surveilr-${{ matrix.target }}-${{ matrix.format }}
-          path: "*.{deb,rpm,tar.gz}"
+          path: |
+            *.deb
+            *.rpm
+            *.tar.gz
+          if-no-files-found: error
           
   create-release:
     needs: [build-packages, extract-packages]
