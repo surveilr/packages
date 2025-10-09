@@ -215,6 +215,12 @@ jobs:
         with:
           path: ./artifacts
           
+      - name: List downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          find ./artifacts -type f -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*sbom.json" | head -10
+          ls -la ./artifacts/ || echo "No artifacts directory"
+          
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -226,4 +232,4 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
