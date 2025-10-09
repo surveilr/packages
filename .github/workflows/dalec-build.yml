@@ -232,16 +232,41 @@ jobs:
           find ./artifacts -type f -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*sbom.json" | head -10
           ls -la ./artifacts/ || echo "No artifacts directory"
           
-      - name: Add packages to existing release
-        uses: softprops/action-gh-release@v1
+      - name: Get Release Upload URL
+        id: get_upload_url
+        uses: actions/github-script@v5
         with:
-          files: |
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.tar.gz
-            artifacts/**/*sbom.json
-          # Don't generate new release notes - add to existing release
-          generate_release_notes: false
-          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          script: |
+              const tag = process.env.GITHUB_REF.split('/').pop();
+              const releases = await github.rest.repos.listReleases({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+              });
+              const release = releases.data.find(release => release.tag_name === tag);
+              if (!release) {
+                  throw new Error(`Release not found for tag ${tag}`);
+              }
+              return release.upload_url;
+          result-encoding: string
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_REF: ${{ github.ref }}
+          
+      - name: Upload jammy .deb to release
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_upload_url.outputs.result }}
+          asset_path: ./artifacts/surveilr-jammy-deb/surveilr_3.1.0-ubuntu22.04u1_amd64.deb
+          asset_name: surveilr_jammy.deb
+          asset_content_type: application/vnd.debian.binary-package
+          
+      - name: Upload bookworm .deb to release  
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_upload_url.outputs.result }}
+          asset_path: ./artifacts/surveilr-bookworm-deb/surveilr_3.1.0-debian12u1_amd64.deb
+          asset_name: surveilr_bookworm.deb
+          asset_content_type: application/vnd.debian.binary-package
