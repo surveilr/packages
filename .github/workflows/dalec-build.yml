@@ -26,7 +26,7 @@ jobs:
       
     strategy:
       matrix:
-        target: [jammy, bookworm, almalinux9, rockylinux9]
+        target: [jammy, bookworm]
         platform:
           - linux/amd64
     
@@ -145,12 +145,6 @@ jobs:
             platform: linux/amd64
           - target: bookworm  
             format: deb
-            platform: linux/amd64
-          - target: almalinux9
-            format: rpm
-            platform: linux/amd64
-          - target: rockylinux9
-            format: rpm
             platform: linux/amd64
     
     steps:
