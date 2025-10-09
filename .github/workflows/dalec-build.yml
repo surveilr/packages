@@ -135,8 +135,7 @@ jobs:
   extract-packages:
     needs: build-packages
     runs-on: ubuntu-latest
-    # Temporarily removed for testing artifact upload
-    # if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/')
     
     strategy:
       matrix:
@@ -219,8 +218,7 @@ jobs:
   create-release:
     needs: [build-packages, extract-packages]
     runs-on: ubuntu-latest
-    # Disable for testing - just want to test artifact upload
-    if: false
+    if: startsWith(github.ref, 'refs/tags/')
     
     steps:
       - name: Download all artifacts
