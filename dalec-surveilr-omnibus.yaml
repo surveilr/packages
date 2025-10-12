@@ -1,0 +1,39 @@
+# syntax=ghcr.io/azure/dalec/frontend:latest
+# DALEC config for packaging surveilr omnibus (sidecar tools)
+
+name: surveilr-omnibus
+version: 0.1.10
+revision: 1
+packager: Surveilr Team
+vendor: Surveilr
+license: Apache-2.0
+description: Surveilr omnibus package containing sidecar tools (surveilrctl and future utilities)
+website: https://surveilr.com
+
+sources:
+  src:
+    context: {}
+
+# No compilation - just package existing binary from build context  
+build:
+  steps:
+    - command: |
+        set -ex
+        # Debug: Check what files are available
+        pwd
+        ls -la
+        find . -name "*surveilrctl*" -type f
+        
+        # Binary provided by repository dispatch workflow
+        # Should be available in build context from src/ directory
+        ls -la src/surveilrctl
+        cp src/surveilrctl ./surveilrctl
+        chmod +x surveilrctl
+
+artifacts:
+  binaries:
+    surveilrctl:
+
+targets:
+  jammy:          # Ubuntu 22.04 DEB
+  bookworm:       # Debian 12 DEB

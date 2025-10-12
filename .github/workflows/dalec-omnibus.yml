@@ -1,0 +1,304 @@
+name: DALEC Omnibus Package Build
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  push:
+    tags:
+      - 'omnibus-*.*.*'
+      - 'omnibus-v*.*.*'
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-omnibus-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      
+    strategy:
+      matrix:
+        target: [jammy, bookworm]
+        platform:
+          - linux/amd64
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Check for new surveilrctl release
+        id: check_release
+        run: |
+          # Try to derive version if it's a tag, else check for new releases
+          if [[ "${GITHUB_REF}" == refs/tags/omnibus-* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/omnibus-}
+            VERSION=${VERSION#v}
+            echo "🏷️ Building for tagged version: $VERSION"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "🔍 Fetching latest surveilrctl release info..."
+            API_RESPONSE=$(curl -s https://api.github.com/repos/surveilr/surveilrctl/releases/latest)
+            VERSION=$(echo "$API_RESPONSE" | jq -r '.tag_name // empty')
+            
+            if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+              echo "❌ Could not determine latest version from API"
+              echo "API Response: $API_RESPONSE"
+              exit 1
+            fi
+            
+            # Check if we already have this version packaged
+            echo "📦 Checking if omnibus package already exists for version $VERSION..."
+            EXISTING_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases | jq -r --arg version "$VERSION" '.[] | select(.tag_name == ("omnibus-" + $version)) | .tag_name')
+            
+            if [[ -n "$EXISTING_RELEASE" ]]; then
+              echo "✅ Omnibus package already exists for version $VERSION (tag: $EXISTING_RELEASE)"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "🆕 New surveilrctl version $VERSION found, will create omnibus package"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Download surveilrctl binary
+        if: steps.check_release.outputs.should_build == 'true'
+        run: |
+          VERSION="${{ steps.check_release.outputs.version }}"
+
+          echo "📦 Downloading surveilrctl binary for version: $VERSION"
+          
+          # Download from surveilrctl releases
+          wget -q "https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${VERSION}_x86_64-unknown-linux-gnu.tar.gz" -O surveilrctl.tar.gz || {
+            echo "❌ Failed to fetch surveilrctl binary for version ${VERSION}"
+            echo "Tried URL: https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${VERSION}_x86_64-unknown-linux-gnu.tar.gz"
+            exit 1
+          }
+          
+          # Clean up any existing files or directories
+          rm -rf surveilrctl
+          
+          # Extract binary
+          tar -xzf surveilrctl.tar.gz || {
+            echo "❌ Failed to extract surveilrctl binary"
+            exit 1
+          }
+          
+          # Place binary where DALEC expects it
+          mkdir -p src
+          cp surveilrctl src/surveilrctl
+          chmod +x src/surveilrctl
+
+          echo "✅ surveilrctl binary downloaded and prepared."
+
+        
+      - name: Set up Docker Buildx
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: |
+            network=host
+            
+      - name: Log in to Container Registry
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        if: steps.check_release.outputs.should_build == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-omnibus-${{ matrix.target }}
+          tags: |
+            type=raw,value=omnibus-${{ steps.check_release.outputs.version }}
+            type=ref,event=branch
+            type=ref,event=pr
+            
+      - name: Build and push omnibus package
+        if: steps.check_release.outputs.should_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: dalec-surveilr-omnibus.yaml
+          platforms: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: true
+          
+      - name: Generate SBOM
+        if: matrix.platform == 'linux/amd64' && steps.check_release.outputs.should_build == 'true'
+        run: |
+          # Extract SBOM from built image using the version tag
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ github.repository }}/surveilr-omnibus-${{ matrix.target }}:omnibus-${{ steps.check_release.outputs.version }} \
+            --format '{{ json .SBOM }}' > surveilr-omnibus-${{ matrix.target }}-sbom.json
+            
+      - name: Upload SBOM
+        if: matrix.platform == 'linux/amd64' && steps.check_release.outputs.should_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: surveilr-omnibus-${{ matrix.target }}-sbom
+          path: surveilr-omnibus-${{ matrix.target }}-sbom.json
+
+      - name: Create omnibus release tag
+        if: steps.check_release.outputs.should_build == 'true' && matrix.platform == 'linux/amd64' && matrix.target == 'jammy'
+        run: |
+          VERSION="${{ steps.check_release.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "omnibus-$VERSION" -m "Omnibus package for surveilrctl $VERSION"
+          git push origin "omnibus-$VERSION"
+          
+  extract-omnibus-packages:
+    needs: build-omnibus-packages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    strategy:
+      matrix:
+        include:
+          - target: jammy
+            format: deb
+            platform: linux/amd64
+          - target: bookworm  
+            format: deb
+            platform: linux/amd64
+    
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract omnibus package artifacts  
+        run: |
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/surveilr-omnibus-${{ matrix.target }}:${{ github.ref_name }}"
+          
+          echo "🔍 Extracting packages from $IMAGE_NAME..."
+          
+          # Create container with different dummy commands until one works
+          CONTAINER_ID=""
+          for cmd in "/bin/true" "true" "echo hello" "ls" "/usr/bin/true"; do
+            if CONTAINER_ID=$(docker create $IMAGE_NAME $cmd 2>/dev/null); then
+              echo "✅ Created container with command: $cmd"
+              break
+            fi
+          done
+          
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "❌ Failed to create container with any command"
+            exit 1
+          fi
+          
+          echo "Container ID: $CONTAINER_ID"
+          
+          # Extract specific files based on format to avoid permission issues
+          docker cp $CONTAINER_ID:/. ./temp_extract/
+          find ./temp_extract -name "*.deb" -exec cp {} ./ \; 2>/dev/null || echo "No .deb files found"
+          ls -la *.deb 2>/dev/null || echo "No .deb files in current directory"
+          
+          # Cleanup
+          docker rm $CONTAINER_ID
+          rm -rf ./temp_extract
+          
+      - name: Check extracted packages before upload
+        run: |
+          echo "📦 Files in current directory:"
+          ls -la
+          echo "🔍 Looking for packages to upload:"
+          ls -la *.deb *.rpm *.tar.gz 2>/dev/null || echo "❌ No package files found for upload"
+          
+      - name: Upload omnibus package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: surveilr-omnibus-${{ matrix.target }}-${{ matrix.format }}
+          path: |
+            *.deb
+            *.rpm
+            *.tar.gz
+          if-no-files-found: error
+          
+  create-omnibus-release:
+    needs: [build-omnibus-packages, extract-omnibus-packages]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          
+      - name: List downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          find ./artifacts -type f -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*sbom.json" | head -10
+          ls -la ./artifacts/ || echo "No artifacts directory"
+          
+      - name: Get Release Upload URL
+        id: get_upload_url
+        uses: actions/github-script@v5
+        with:
+          script: |
+              const tag = process.env.GITHUB_REF.split('/').pop();
+              const releases = await github.rest.repos.listReleases({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+              });
+              const release = releases.data.find(release => release.tag_name === tag);
+              if (!release) {
+                  throw new Error(`Release not found for tag ${tag}`);
+              }
+              return release.upload_url;
+          result-encoding: string
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          
+      - name: Upload jammy omnibus .deb to release
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_upload_url.outputs.result }}
+          asset_path: ./artifacts/surveilr-omnibus-jammy-deb/surveilr-omnibus_0.1.10-ubuntu22.04u1_amd64.deb
+          asset_name: surveilr-omnibus_jammy.deb
+          asset_content_type: application/vnd.debian.binary-package
+          
+      - name: Upload bookworm omnibus .deb to release  
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_upload_url.outputs.result }}
+          asset_path: ./artifacts/surveilr-omnibus-bookworm-deb/surveilr-omnibus_0.1.10-debian12u1_amd64.deb
+          asset_name: surveilr-omnibus_bookworm.deb
+          asset_content_type: application/vnd.debian.binary-package
