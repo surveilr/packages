@@ -30,6 +30,10 @@ jobs:
       packages: write
       attestations: write
       
+    outputs:
+      should_build: ${{ steps.check_release.outputs.should_build }}
+      version: ${{ steps.check_release.outputs.version }}
+      
     strategy:
       matrix:
         target: [jammy, bookworm]
@@ -166,19 +170,17 @@ jobs:
           name: surveilr-omnibus-${{ matrix.target }}-sbom
           path: surveilr-omnibus-${{ matrix.target }}-sbom.json
 
-      - name: Create omnibus release tag
+      - name: Set omnibus version output
         if: steps.check_release.outputs.should_build == 'true' && matrix.platform == 'linux/amd64' && matrix.target == 'jammy'
+        id: omnibus_version
         run: |
           VERSION="${{ steps.check_release.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "omnibus-$VERSION" -m "Omnibus package for surveilrctl $VERSION"
-          git push origin "omnibus-$VERSION"
+          echo "omnibus_version=omnibus-$VERSION" >> $GITHUB_OUTPUT
           
   extract-omnibus-packages:
     needs: build-omnibus-packages
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: needs.build-omnibus-packages.outputs.should_build == 'true'
     
     strategy:
       matrix:
@@ -203,7 +205,7 @@ jobs:
           
       - name: Extract omnibus package artifacts  
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/surveilr-omnibus-${{ matrix.target }}:${{ github.ref_name }}"
+          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/surveilr-omnibus-${{ matrix.target }}:omnibus-${{ needs.build-omnibus-packages.outputs.version }}"
           
           echo "🔍 Extracting packages from $IMAGE_NAME..."
           
@@ -252,7 +254,7 @@ jobs:
   create-omnibus-release:
     needs: [build-omnibus-packages, extract-omnibus-packages]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: needs.build-omnibus-packages.outputs.should_build == 'true'
     
     steps:
       - name: Download all artifacts
@@ -266,41 +268,57 @@ jobs:
           find ./artifacts -type f -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*sbom.json" | head -10
           ls -la ./artifacts/ || echo "No artifacts directory"
           
-      - name: Get Release Upload URL
-        id: get_upload_url
-        uses: actions/github-script@v5
+      - name: Create omnibus release
+        uses: actions/github-script@v7
         with:
           script: |
-              const tag = process.env.GITHUB_REF.split('/').pop();
-              const releases = await github.rest.repos.listReleases({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-              });
-              const release = releases.data.find(release => release.tag_name === tag);
-              if (!release) {
-                  throw new Error(`Release not found for tag ${tag}`);
+            const fs = require('fs');
+            const path = require('path');
+            const version = '${{ needs.build-omnibus-packages.outputs.version }}';
+            const tagName = `omnibus-${version}`;
+            
+            // Create release
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `surveilr-omnibus ${version}`,
+              body: `Omnibus package for surveilrctl ${version}\n\nAutomatically packaged from surveilrctl release.`,
+              draft: false,
+              prerelease: false
+            });
+            
+            console.log(`Created release: ${release.data.html_url}`);
+            
+            // Find and upload .deb files
+            const artifactsDir = './artifacts';
+            const debFiles = [];
+            
+            function findDebFiles(dir) {
+              const files = fs.readdirSync(dir);
+              for (const file of files) {
+                const filePath = path.join(dir, file);
+                if (fs.statSync(filePath).isDirectory()) {
+                  findDebFiles(filePath);
+                } else if (file.endsWith('.deb')) {
+                  debFiles.push(filePath);
+                }
               }
-              return release.upload_url;
-          result-encoding: string
-        env:
-          GITHUB_REF: ${{ github.ref }}
-          
-      - name: Upload jammy omnibus .deb to release
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_upload_url.outputs.result }}
-          asset_path: ./artifacts/surveilr-omnibus-jammy-deb/surveilr-omnibus_0.1.10-ubuntu22.04u1_amd64.deb
-          asset_name: surveilr-omnibus_jammy.deb
-          asset_content_type: application/vnd.debian.binary-package
-          
-      - name: Upload bookworm omnibus .deb to release  
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_upload_url.outputs.result }}
-          asset_path: ./artifacts/surveilr-omnibus-bookworm-deb/surveilr-omnibus_0.1.10-debian12u1_amd64.deb
-          asset_name: surveilr-omnibus_bookworm.deb
-          asset_content_type: application/vnd.debian.binary-package
+            }
+            
+            findDebFiles(artifactsDir);
+            
+            for (const debFile of debFiles) {
+              const fileName = path.basename(debFile);
+              const fileContent = fs.readFileSync(debFile);
+              
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: fileName,
+                data: fileContent
+              });
+              
+              console.log(`Uploaded: ${fileName}`);
+            }
