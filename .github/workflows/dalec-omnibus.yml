@@ -79,13 +79,15 @@ jobs:
         if: steps.check_release.outputs.should_build == 'true'
         run: |
           VERSION="${{ steps.check_release.outputs.version }}"
+          # Remove 'v' prefix from version for filename if present
+          FILE_VERSION=${VERSION#v}
 
-          echo "📦 Downloading surveilrctl binary for version: $VERSION"
+          echo "📦 Downloading surveilrctl binary for version: $VERSION (file version: $FILE_VERSION)"
           
           # Download from surveilrctl releases
-          wget -q "https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${VERSION}_x86_64-unknown-linux-gnu.tar.gz" -O surveilrctl.tar.gz || {
+          curl -fsSL "https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${FILE_VERSION}_x86_64-unknown-linux-gnu.tar.gz" -o surveilrctl.tar.gz || {
             echo "❌ Failed to fetch surveilrctl binary for version ${VERSION}"
-            echo "Tried URL: https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${VERSION}_x86_64-unknown-linux-gnu.tar.gz"
+            echo "Tried URL: https://github.com/surveilr/surveilrctl/releases/download/${VERSION}/surveilrctl_${FILE_VERSION}_x86_64-unknown-linux-gnu.tar.gz"
             exit 1
           }
           
