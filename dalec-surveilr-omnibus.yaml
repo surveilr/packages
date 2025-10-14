@@ -11,12 +11,8 @@ description: Surveilr omnibus package with osquery integration and sidecar tools
 website: https://surveilr.com
 
 dependencies:
-  ubuntu:
+  runtime:
     - osquery
-    - surveilr
-  debian:
-    - osquery
-    - surveilr
 
 sources:
   src:
@@ -40,8 +36,8 @@ build:
 
 artifacts:
   binaries:
-    surveilrctl:
+    surveilrctl: ./surveilrctl
 
 targets:
-  jammy:          # Ubuntu 22.04 DEB
-  bookworm:       # Debian 12 DEB
+  jammy: {}          # Ubuntu 22.04 DEB
+  bookworm: {}       # Debian 12 DEB

@@ -72,6 +72,7 @@ jobs:
             if [[ -n "$EXISTING_RELEASE" ]]; then
               echo "✅ Omnibus package already exists for version $VERSION (tag: $EXISTING_RELEASE)"
               echo "should_build=false" >> $GITHUB_OUTPUT
+              echo "version=$VERSION" >> $GITHUB_OUTPUT
             else
               echo "🆕 New surveilrctl version $VERSION found, will create omnibus package"
               echo "should_build=true" >> $GITHUB_OUTPUT
