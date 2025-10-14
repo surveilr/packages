@@ -10,6 +10,10 @@ license: Apache-2.0
 description: Surveilr omnibus package with osquery integration and sidecar tools
 website: https://surveilr.com
 
+dependencies:
+  runtime:
+    - osquery
+
 sources:
   src:
     context: {}
