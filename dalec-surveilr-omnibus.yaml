@@ -36,8 +36,8 @@ build:
 
 artifacts:
   binaries:
-    surveilrctl: ./surveilrctl
+    surveilrctl:
 
 targets:
-  jammy: {}          # Ubuntu 22.04 DEB
-  bookworm: {}       # Debian 12 DEB
+  jammy:          # Ubuntu 22.04 DEB
+  bookworm:       # Debian 12 DEB
