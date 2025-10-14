@@ -7,8 +7,16 @@ revision: 1
 packager: Surveilr Team
 vendor: Surveilr
 license: Apache-2.0
-description: Surveilr omnibus package containing sidecar tools (surveilrctl and future utilities)
+description: Surveilr omnibus package with osquery integration and sidecar tools
 website: https://surveilr.com
+
+dependencies:
+  ubuntu:
+    - osquery
+    - surveilr
+  debian:
+    - osquery
+    - surveilr
 
 sources:
   src:
