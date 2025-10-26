@@ -1,133 +1,93 @@
-# Surveilr Package Repository
+## Installation guide
 
-This repository contains DALEC-generated packages for surveilr, providing native installation options across multiple platforms.
+Get the latest `surveilr` by following these steps to complete the installation:
 
-## Installation
+1. Visit our GitHub Releases page:
 
-### 📦 Package Managers (Recommended)
+   - Navigate to our [GitHub Releases](https://github.com/opsfolio/releases.opsfolio.com/releases) page to download the latest version of `surveilr` that’s compatible with your operating system.
 
-#### Ubuntu/Debian (.deb packages)
+2. Download the appropriate version:
 
-```bash
-# Ubuntu (Jammy)
-wget https://github.com/surveilr/packages/releases/latest/download/surveilr_jammy.deb
-sudo dpkg -i surveilr_jammy.deb
+   - Select and download the version that matches your operating system (Windows, macOS, or Linux).
 
-# Debian (Bookworm)
-wget https://github.com/surveilr/packages/releases/latest/download/surveilr_bookworm.deb
-sudo dpkg -i surveilr_bookworm.deb
-```
+3. Using Scripts
 
-#### macOS (Homebrew)
+   - **Windows:**
 
-```bash
-brew tap surveilr/tap && brew install surveilr
-```
+      ```powershell
+         $ irm https://raw.githubusercontent.com/opsfolio/releases.opsfolio.com/refs/heads/main/surveilr/install.ps1 | iex
+      ```
 
-#### Windows
+   - **macOS and Linux:**
+        Install in desired path by running any of the following commands:
 
-Download the latest Windows binary from [releases](https://github.com/surveilr/packages/releases/latest).
+        ```bash
+        # install in current path
+        $ curl -sL https://raw.githubusercontent.com/opsfolio/releases.opsfolio.com/main/surveilr/install.sh | bash
 
-### 🔗 Direct Download
+        # Install globally
+        $ curl -sL https://raw.githubusercontent.com/opsfolio/releases.opsfolio.com/main/surveilr/install.sh | SURVEILR_HOME="$HOME/bin" bash
 
-Visit our [GitHub Releases](https://github.com/surveilr/packages/releases) page to download pre-built binaries for your operating system:
+        # install in preferred path
+        $ curl -sL https://raw.githubusercontent.com/opsfolio/releases.opsfolio.com/main/surveilr/install.sh | SURVEILR_HOME="/path/to/directory" bash
+        ```
+4. Run verification steps [here](#verify-installation).
 
-- **Windows**: `surveilr-windows.zip`
-- **macOS**: `surveilr-macos.zip`
-- **Linux**: `surveilr-linux.tar.gz`
+### Alternative Installation for Linux Using Eget
 
-### 📜 Installation Scripts (Legacy)
+1. Before you can get anything, you have to get [Eget](https://github.com/zyedidia/eget):
 
-For backward compatibility, you can still use the installation scripts:
+   ```bash
+   $ curl https://zyedidia.github.io/eget.sh | sh
+   ```
 
-#### Windows
+2. Now install `surveilr` using `eget`:
 
-```powershell
-irm https://raw.githubusercontent.com/surveilr/packages/refs/heads/main/scripts/install.ps1 | iex
-```
+   ```bash
+   $ eget opsfolio/releases.opsfolio.com --asset tar.gz
+   ```
 
-#### macOS and Linux
+3. Run verification steps [here](#verify-installation).
 
-```bash
-# Install in current directory
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | bash
+## Verify installation
 
-# Install globally
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | SURVEILR_HOME="$HOME/bin" bash
-
-# Install in custom directory
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | SURVEILR_HOME="/path/to/directory" bash
-```
-
-### 🛠️ Alternative Installation (Eget)
+Run the following command to verify that `surveilr` is installed correctly:
 
 ```bash
-# Install eget first
-curl https://zyedidia.github.io/eget.sh | sh
-
-# Install surveilr
-eget surveilr/packages --asset tar.gz
+$ surveilr --version                      # version information
+$ surveilr doctor                         # dependencies that surveilr uses
+$ surveilr --help                         # get CLI help (pay special attention to ENV var names)
 ```
 
-## Verification
+Checkout more commands in the [reference section](https://docs.opsfolio.com/surveilr/reference/cli/commands/)
 
-After installation, verify that `surveilr` is working correctly:
+## Upgrading `surveilr`
+
+The following commands shows how to upgrade `surveilr` on your:
 
 ```bash
-surveilr --version                      # Show version information
-surveilr doctor                         # Check dependencies
-surveilr --help                         # Display help information
+$ surveilr upgrade ## Upgrades to the latest version
+
+$ surveilr upgrade -v 0.13.0 ## Upgrades to version 0.13.0 if present
 ```
 
-For more commands, see the [CLI reference](https://docs.opsfolio.com/surveilr/reference/cli/commands/).
-
-## Updates
-
-### Upgrading
+When using the command above, you will be prompted to confirm the upgrade by typing `yes`. However, if you are running the upgrade in a bash script, you won't be able to provide this confirmation interactively. To address this, we have provided the `--yes` or `--y` flag, which automatically skips the confirmation step. Here is how to use it:
 
 ```bash
-# Upgrade to latest version
-surveilr upgrade
+## Upgrades to the latest version and skips confirmation
+$ surveilr upgrade --yes
 
-# Upgrade to specific version
-surveilr upgrade -v 3.2.0
-
-# Skip confirmation prompt
-surveilr upgrade --yes
+## Upgrades to version 0.1.2 if present and  skips the confirmation
+$ surveilr upgrade -v 0.13.0 --yes
 ```
 
-### Package Manager Updates
+## Downgrading `surveilr`
 
-If you installed via package managers, you can also update using:
+The following commands shows how to downgrade `surveilr` to any version:
 
 ```bash
-# Ubuntu/Debian
-sudo apt update && sudo apt upgrade surveilr
-
-# macOS
-brew upgrade surveilr
+$ surveilr upgrade -v 0.12.0 ## downgrades to version 0.12.0
 ```
+This takes the same form as the `upgrade` command with the only difference being that a lower version is passed.
 
-### Downgrading
-
-```bash
-# Downgrade to specific version
-surveilr upgrade -v 3.1.0
-```
-
-## Release Information
-
-This repository is powered by [DALEC](https://github.com/Azure/dalec) for automated package generation and distribution. Each release includes:
-
-- **Ubuntu packages** (.deb for jammy)
-- **Debian packages** (.deb for bookworm) 
-- **Windows binaries** (.zip)
-- **macOS binaries** (.zip)
-- **Linux binaries** (.tar.gz)
-- **Homebrew formula** (macOS)
-
-For the latest release notes, visit [GitHub Releases](https://github.com/surveilr/packages/releases).
-
----
-
-**Note**: This replaces the previous release system from `releases.opsfolio.com`. All new installations should use the packages from this repository.
+<!-- Security scan triggered at 2025-09-02 15:49:15 -->
