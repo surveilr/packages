@@ -14,25 +14,16 @@ sources:
   src:
     context: {}
 
-# Add build and runtime dependencies for ODBC
+# Add runtime dependencies for ODBC
 dependencies:
-  build:
-    unixodbc-dev:
-    libodbc1:
   runtime:
     libodbc1:
-    unixodbc:
 
 # No compilation - just package existing binary from build context  
 build:
   steps:
     - command: |
         set -ex
-        
-        # Install ODBC dependencies in build environment
-        apt-get update
-        apt-get install -y unixodbc-dev libodbc1
-        
         # Debug: Check what files are available
         pwd
         ls -la
