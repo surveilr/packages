@@ -50,13 +50,13 @@ For backward compatibility, you can still use the installation scripts:
 
 ```bash
 # Install in current directory
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | bash
+curl -sL https://raw.githubusercontent.com/surveilr/packages/main/surveilr/install.sh | bash
 
 # Install globally
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | SURVEILR_HOME="$HOME/bin" bash
+curl -sL https://raw.githubusercontent.com/surveilr/packages/main/surveilr/install.sh | SURVEILR_HOME="$HOME/bin" bash
 
 # Install in custom directory
-curl -sL https://raw.githubusercontent.com/surveilr/packages/main/scripts/install.sh | SURVEILR_HOME="/path/to/directory" bash
+curl -sL https://raw.githubusercontent.com/surveilr/packages/main/surveilr/install.sh | SURVEILR_HOME="/path/to/directory" bash
 ```
 
 ### 🛠️ Alternative Installation (Eget)
@@ -106,13 +106,6 @@ sudo apt update && sudo apt upgrade surveilr
 
 # macOS
 brew upgrade surveilr
-```
-
-### Downgrading
-
-```bash
-# Downgrade to specific version
-surveilr upgrade -v 3.1.0
 ```
 
 ## Release Information
