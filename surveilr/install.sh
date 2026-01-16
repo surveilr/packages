@@ -44,9 +44,9 @@ echo "Starting download and extraction..."
 
 # Download and extract the binary to the SURVEILR_HOME directory
 if [ "$PLATFORM" = "darwin" ]; then
-	curl -sL $DOWNLOAD_URL -o temp.zip && unzip -j -q temp.zip -d $SURVEILR_HOME && rm temp.zip || { echo "Failed to download or extract on Darwin" | tee -a error.log; exit 1; }
+	curl -sL $DOWNLOAD_URL -o temp.zip && unzip -o -j -q temp.zip -d $SURVEILR_HOME && rm temp.zip || { echo "Failed to download or extract on Darwin" | tee -a error.log; exit 1; }
 elif [[ "$PLATFORM" == *"cygwin"* || "$PLATFORM" == *"mingw"* || "$PLATFORM" == *"msys"* ]]; then
-	curl -sL $DOWNLOAD_URL -o temp.zip && unzip -j -q temp.zip -d $SURVEILR_HOME && rm temp.zip || { echo "Failed to download or extract on Windows" | tee -a error.log; exit 1; }
+	curl -sL $DOWNLOAD_URL -o temp.zip && unzip -o -j -q temp.zip -d $SURVEILR_HOME && rm temp.zip || { echo "Failed to download or extract on Windows" | tee -a error.log; exit 1; }
 elif [ "$PLATFORM" = "linux" ]; then
 	curl -sL $DOWNLOAD_URL | tar -xz -C $SURVEILR_HOME || { echo "Failed to download or extract on Linux" | tee -a error.log; exit 1; }
 else
