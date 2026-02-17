@@ -85,9 +85,77 @@ jobs:
           asset_name: surveilr_${{ github.ref_name }}_${{ matrix.triple.target }}.zip
           asset_content_type: application/zip
 
+  linux-release:
+      name: release x86_64-unknown-linux-gnu
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          toolchain: [stable]
+          triple:
+            - { target: x86_64-unknown-linux-gnu, cross: false }
+      steps:
+        - uses: actions/checkout@v2
+          with:
+            repository: surveilr/surveilr
+            token: ${{ secrets.GH_PAT }}
+            ref: 'main'
+        - name: Add target
+          run: rustup target add x86_64-unknown-linux-gnu
+        - name: Extract Release Version
+          id: release_version
+          run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        - name: Install toolchain
+          uses: actions-rs/toolchain@v1
+          with:
+            profile: minimal
+            toolchain: ${{ matrix.toolchain }}
+            override: true
+
+        - name: Get Release Upload URL
+          if: startsWith(github.ref, 'refs/tags/')
+          id: get_upload_url
+          uses: actions/github-script@v5
+          with:
+            script: |
+                const tag = process.env.GITHUB_REF.split('/').pop();
+                const releases = await github.rest.repos.listReleases({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                });
+                const release = releases.data.find(release => release.tag_name === tag);
+                if (!release) {
+                    throw new Error(`Release not found for tag ${tag}`);
+                }
+                return release.upload_url;
+            result-encoding: string
+          env:
+                GITHUB_REF: ${{ github.ref }}
+
+        - name: Print Upload URL
+          run: |
+            echo ${{ steps.get_upload_url.outputs.result }}
+        - name: Build with Cargo
+          run: |
+            LIBSQLITE3_FLAGS="-DSQLITE_ENABLE_MATH_FUNCTIONS" cargo build --release --target ${{ matrix.triple.target }}
+            ./target/${{ matrix.triple.target }}/release/surveilr --help
+            cd target/${{ matrix.triple.target }}/release
+            tar -czf ../../../surveilr_${{ github.ref_name }}_${{ matrix.triple.target }}.tar.gz surveilr
+
+        - name: Upload To Releases
+          if: startsWith(github.ref, 'refs/tags/')
+          uses: actions/upload-release-asset@v1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            upload_url: ${{ steps.get_upload_url.outputs.result }}
+            asset_path: surveilr_${{github.ref_name}}_${{ matrix.triple.target }}.tar.gz
+            asset_name: surveilr_${{github.ref_name}}_${{ matrix.triple.target }}.tar.gz
+            asset_content_type: application/gzip
+
   macos-release:
       name: release x86_64-apple-darwin
       runs-on: macos-latest
+      needs: linux-release
       strategy:
         matrix:
           toolchain: [stable]
@@ -145,7 +213,7 @@ jobs:
         - name: Upload To Releases
           if: startsWith(github.ref, 'refs/tags/')
           uses: actions/upload-release-asset@v1
-          env: 
+          env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           with:
             upload_url: ${{ steps.get_upload_url.outputs.result }}
@@ -156,40 +224,66 @@ jobs:
         - name: Create Homebrew Formula
           if: startsWith(github.ref, 'refs/tags/')
           run: |
-            # Calculate SHA256 of the zip file
-            ZIP_FILE="surveilr_${{ github.ref_name }}_${{ matrix.triple.target }}.zip"
-            SHA256=$(shasum -a 256 $ZIP_FILE | cut -d' ' -f1)
-            
+            # Calculate SHA256 of the macOS zip file
+            MACOS_ZIP_FILE="surveilr_${{ github.ref_name }}_${{ matrix.triple.target }}.zip"
+            MACOS_SHA256=$(shasum -a 256 $MACOS_ZIP_FILE | cut -d' ' -f1)
+
+            # Download and calculate SHA256 of the Linux tar.gz file
+            LINUX_TAR_FILE="surveilr_${{ github.ref_name }}_x86_64-unknown-linux-gnu.tar.gz"
+            LINUX_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$LINUX_TAR_FILE"
+
+            echo "Downloading Linux binary from: $LINUX_URL"
+            curl -sL "$LINUX_URL" -o "$LINUX_TAR_FILE"
+            LINUX_SHA256=$(shasum -a 256 $LINUX_TAR_FILE | cut -d' ' -f1)
+
             # Clean version (remove 'v' prefix if present)
             VERSION="${{ github.ref_name }}"
             VERSION=${VERSION#v}
-            
-            # Create Homebrew formula
-            cat > surveilr.rb << EOF
+
+            # Create Homebrew formula with platform-specific support
+            cat > surveilr.rb << 'EOF'
             class Surveilr < Formula
               desc "Resource surveillance and monitoring tool"
               homepage "https://surveilr.com"
-              url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$ZIP_FILE"
-              sha256 "$SHA256"
-              version "$VERSION"
-              
+              version "VERSION_PLACEHOLDER"
+              license "MIT"
+
+              on_macos do
+                url "https://github.com/REPO_PLACEHOLDER/releases/download/TAG_PLACEHOLDER/MACOS_FILE_PLACEHOLDER"
+                sha256 "MACOS_SHA_PLACEHOLDER"
+              end
+
+              on_linux do
+                url "https://github.com/REPO_PLACEHOLDER/releases/download/TAG_PLACEHOLDER/LINUX_FILE_PLACEHOLDER"
+                sha256 "LINUX_SHA_PLACEHOLDER"
+              end
+
               def install
                 bin.install "surveilr"
               end
-              
+
               test do
                 system "#{bin}/surveilr", "--version"
               end
             end
             EOF
-            
+
+            # Replace placeholders
+            sed -i '' "s|VERSION_PLACEHOLDER|$VERSION|g" surveilr.rb
+            sed -i '' "s|REPO_PLACEHOLDER|${{ github.repository }}|g" surveilr.rb
+            sed -i '' "s|TAG_PLACEHOLDER|${{ github.ref_name }}|g" surveilr.rb
+            sed -i '' "s|MACOS_FILE_PLACEHOLDER|$MACOS_ZIP_FILE|g" surveilr.rb
+            sed -i '' "s|LINUX_FILE_PLACEHOLDER|$LINUX_TAR_FILE|g" surveilr.rb
+            sed -i '' "s|MACOS_SHA_PLACEHOLDER|$MACOS_SHA256|g" surveilr.rb
+            sed -i '' "s|LINUX_SHA_PLACEHOLDER|$LINUX_SHA256|g" surveilr.rb
+
             echo "Generated Homebrew formula:"
             cat surveilr.rb
-            
+
         - name: Upload Homebrew Formula
           if: startsWith(github.ref, 'refs/tags/')
           uses: actions/upload-release-asset@v1
-          env: 
+          env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           with:
             upload_url: ${{ steps.get_upload_url.outputs.result }}
@@ -202,7 +296,7 @@ jobs:
           run: |
             VERSION="${{ github.ref_name }}"
             VERSION=${VERSION#v}
-            
+
             # Create a tag in homebrew-tap repo to trigger its update workflow
             curl -X POST \
               -H "Authorization: token ${{ secrets.GH_PAT }}" \
@@ -212,5 +306,5 @@ jobs:
                 \"ref\": \"refs/tags/update-${VERSION}\",
                 \"sha\": \"$(curl -s -H \"Authorization: token ${{ secrets.GH_PAT }}\" https://api.github.com/repos/surveilr/homebrew-tap/git/refs/heads/main | jq -r '.object.sha')\"
               }"
-            
+
             echo "🍺 Created tag update-${VERSION} in homebrew-tap repo"
