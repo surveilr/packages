@@ -277,19 +277,34 @@ jobs:
             const path = require('path');
             const version = '${{ needs.build-omnibus-packages.outputs.version }}';
             const tagName = `omnibus-${version}`;
-            
-            // Create release
-            const release = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: tagName,
-              name: `surveilr-omnibus ${version}`,
-              body: `Omnibus package for surveilrctl ${version}\n\nAutomatically packaged from surveilrctl release.`,
-              draft: false,
-              prerelease: false
-            });
-            
-            console.log(`Created release: ${release.data.html_url}`);
+
+            // Check if release already exists
+            let release;
+            try {
+              const existingRelease = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName
+              });
+              release = existingRelease;
+              console.log(`Release already exists: ${release.data.html_url}`);
+            } catch (error) {
+              if (error.status === 404) {
+                // Release doesn't exist, create it
+                release = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tagName,
+                  name: `surveilr-omnibus ${version}`,
+                  body: `Omnibus package for surveilrctl ${version}\n\nAutomatically packaged from surveilrctl release.`,
+                  draft: false,
+                  prerelease: false
+                });
+                console.log(`Created release: ${release.data.html_url}`);
+              } else {
+                throw error;
+              }
+            }
             
             // Find and upload .deb files
             const artifactsDir = './artifacts';
