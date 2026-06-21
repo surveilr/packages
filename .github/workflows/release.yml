@@ -11,7 +11,7 @@ permissions:
 jobs:
   windows-msvc-release:
     name: release x86_64-pc-windows-msvc
-    runs-on: windows-latest
+    runs-on: windows-2022  # Pinned to VS 2022 due to libduckdb-sys incompatibility with VS 2026
     strategy:
       matrix:
         toolchain: [stable]
